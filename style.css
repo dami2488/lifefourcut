@@ -1,0 +1,173 @@
+/* 기본 초기화 및 글꼴 설정 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Malgun Gothic", sans-serif;
+  background-color: #f4f1ea;
+  color: #222222;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+/* 휴대폰 세로 화면 우선(모바일 퍼스트) 포토부스 상자 */
+.booth-container {
+  width: 100%;
+  max-width: 420px;
+  background-color: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+}
+
+/* 상단 제목 및 상태 안내 문구 */
+.booth-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.booth-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #111111;
+}
+
+.status-message {
+  font-size: 0.95rem;
+  color: #555555;
+  line-height: 1.4;
+  min-height: 2.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 오류 안내 상자 */
+.error-box {
+  background-color: #fff2f2;
+  border: 1px solid #ffcccc;
+  color: #c62828;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 14px 16px;
+  border-radius: 14px;
+  text-align: left;
+  word-break: keep-all;
+}
+
+/* 각 단계 화면 영역 */
+.screen-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 카메라 및 결과 사진 액자 틀 (세로 3:4 비율 기본) */
+.preview-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background-color: #1a1a1a;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 실시간 카메라 영상 (거울처럼 좌우 반전 표시) */
+#camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* 촬영 결과 도화지(canvas) 표시 */
+.result-frame canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 5초 카운트다운 숫자 표시 층 */
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  font-size: 6rem;
+  font-weight: 900;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+/* 버튼 묶음 및 휴대폰 터치 맞춤 버튼 디자인 */
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.primary-btn,
+.secondary-btn {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.primary-btn {
+  background-color: #111111;
+  color: #ffffff;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background-color: #333333;
+}
+
+.primary-btn:disabled {
+  background-color: #999999;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.secondary-btn {
+  background-color: #ece9e2;
+  color: #222222;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background-color: #dedad0;
+}
+
+.primary-btn:active:not(:disabled),
+.secondary-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 화면 숨김 규칙: 반드시 class="hidden" 사용 */
+.hidden {
+  display: none !important;
+}
+

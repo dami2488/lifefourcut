@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인생네컷 웹 포토부스</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 휴대폰 세로 화면 중심의 전체 포토부스 상자 -->
+  <main id="app-container" class="booth-container">
+    <!-- 상단 제목 영역 -->
+    <header id="app-header" class="booth-header">
+      <h1 id="app-title" class="booth-title">인생네컷</h1>
+      <p id="status-message" class="status-message">
+        카메라를 연결하고 있어요. 잠시만 기다려 주세요...
+      </p>
+    </header>
+
+    <!-- 오류 발생 시 한국어 안내 문구 영역 (평소에는 숨김) -->
+    <div id="error-message" class="error-box hidden" role="alert">
+      카메라를 사용할 수 없습니다. 브라우저 주소창 옆에서 카메라 권한을 '허용'으로 바꾸거나, 안전한 주소(https 또는 localhost)에서 다시 열어 주세요.
+    </div>
+
+    <!-- 1. 카메라 촬영 화면 영역 -->
+    <section id="camera-section" class="screen-section">
+      <div id="video-wrapper" class="preview-frame">
+        <!-- 실시간 카메라 영상 -->
+        <video id="camera-video" autoplay playsinline muted></video>
+        <!-- 5초 카운트다운 숫자 표시 (평소에는 숨김) -->
+        <div id="countdown-overlay" class="countdown-overlay hidden">5</div>
+      </div>
+
+      <div class="button-group">
+        <button id="shoot-btn" type="button" class="primary-btn">
+          촬영하기
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. 촬영 결과 확인 화면 영역 (처음에는 숨김) -->
+    <section id="result-section" class="screen-section hidden">
+      <div id="result-container" class="preview-frame result-frame">
+        <!-- 촬영된 사진 1장 도화지(canvas)가 표시되는 영역 -->
+        <canvas id="result-canvas"></canvas>
+      </div>
+
+      <div class="button-group">
+        <button id="retake-btn" type="button" class="secondary-btn">
+          다시 찍기
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 일반 script 태그를 순서대로 불러오기 (module 사용 금지) -->
+  <script src="js/camera.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+
