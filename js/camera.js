@@ -1,32 +1,48 @@
-// 기기의 카메라를 켜서 화면의 video 태그에 실시간 모습을 연결하는 함수입니다.
+// 기기의 카메라를 켜서 video 요소에 연결하고, 성공하면 true, 실패하면 한국어 안내 문장을 돌려주는 함수입니다.
 async function startCamera(video) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error('이 브라우저에서는 카메라 기능을 지원하지 않습니다. 안전한 주소(https 또는 localhost)에서 열어 주세요.');
+    return '이 브라우저에서는 카메라를 사용할 수 없습니다. 안전한 주소(https 또는 localhost)에서 열어 주세요.';
   }
 
-  // 휴대폰 전면 카메라(셀프 카메라)를 우선으로 요청하고, 세로 화면에 잘 맞게 영상을 받아옵니다.
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: 'user',
-      width: { ideal: 720 },
-      height: { ideal: 960 }
-    },
-    audio: false
-  });
+  try {
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.muted = true;
 
-  video.srcObject = stream;
-  await video.play();
-  return stream;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 960 }
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+
+    await new Promise(function (resolve) {
+      if (video.readyState >= 1) {
+        resolve();
+      } else {
+        video.onloadedmetadata = function () {
+          resolve();
+        };
+      }
+    });
+
+    await video.play();
+    return true;
+  } catch (error) {
+    return "카메라를 켤 수 없습니다. 브라우저 주소창 옆에서 카메라 권한을 '허용'으로 바꿔 주세요.";
+  }
 }
 
-// 현재 실시간 영상(video)을 미리보기 화면과 똑같은 3:4 세로 비율로 잘라내어(찌그러짐 없이) 새 도화지(canvas)에 그려 돌려주는 함수입니다.
+// 현재 카메라 영상(video)의 가운데를 4:3 비율로 잘라 좌우 반전된 800×600 캔버스 한 장으로 돌려주는 함수입니다.
 function captureShot(video) {
   const canvas = document.createElement('canvas');
-
-  // 미리보기 액자 틀(.preview-frame)과 똑같은 3:4 세로 비율로 도화지 크기를 맞춥니다.
-  const targetWidth = 720;
-  const targetHeight = 960;
-  const targetRatio = targetWidth / targetHeight; // 3 / 4 (0.75)
+  const targetWidth = 800;
+  const targetHeight = 600;
+  const targetRatio = 4 / 3;
 
   canvas.width = targetWidth;
   canvas.height = targetHeight;
@@ -35,25 +51,23 @@ function captureShot(video) {
   const srcHeight = video.videoHeight || targetHeight;
   const srcRatio = srcWidth / srcHeight;
 
-  // 원본 카메라 영상이 가로로 넓거나 세로로 길어도 사진이 찌그러지지 않도록 가운데 영역만 계산해 잘라냅니다(object-fit: cover 방식).
+  // 가로가 남으면 가로 양옆을 잘라내고, 세로가 남으면 세로 위아래를 잘라내어 가운데 4:3 영역만 구합니다.
   let cropWidth = srcWidth;
   let cropHeight = srcHeight;
   let cropX = 0;
   let cropY = 0;
 
   if (srcRatio > targetRatio) {
-    // 카메라 원본이 3:4보다 가로로 넓은 경우 (예: PC 웹캠 16:9, 4:3) -> 좌우 여분을 잘라냄
     cropWidth = srcHeight * targetRatio;
     cropX = (srcWidth - cropWidth) / 2;
   } else if (srcRatio < targetRatio) {
-    // 카메라 원본이 3:4보다 세로로 긴 경우 (예: 휴대폰 9:16) -> 위아래 여분을 잘라냄
     cropHeight = srcWidth / targetRatio;
     cropY = (srcHeight - cropHeight) / 2;
   }
 
   const ctx = canvas.getContext('2d');
 
-  // 카메라 미리보기 화면이 거울처럼 좌우 반전되어 있으므로, 찍힌 사진도 보이는 그대로 좌우 반전해 도화지에 꽉 채워 그립니다.
+  // 거울처럼 좌우 반전하여 800×600 도화지에 그립니다.
   ctx.save();
   ctx.translate(targetWidth, 0);
   ctx.scale(-1, 1);

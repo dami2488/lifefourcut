@@ -1,128 +1,287 @@
-// 화면에 상태 안내 문구를 바꿔 주는 함수입니다.
-function setStatusMessage(text) {
-  const statusEl = document.getElementById('status-message');
-  if (statusEl) {
-    statusEl.textContent = text;
+// 앱의 전체 상태(선택한 컷 수, 찍은 원본 사진 목록, 카메라 켜짐 여부, 현재 필터 이름표)를 state 객체 하나에 모아 관리합니다.
+const state = {
+  cuts: 4,
+  shots: [],
+  cameraOn: false,
+  filter: 'original'
+};
+
+// 5초 카운트다운 시간과 컷 사이 쉬는 시간(0.7초 = 700밀리초) 설정입니다.
+const COUNTDOWN_SECONDS = 5;
+const PAUSE_BETWEEN_SHOTS_MS = 700;
+
+// 촬영 화면의 안내 문장(p#message)을 바꿔 주는 함수입니다.
+function setMessage(text) {
+  const messageEl = document.getElementById('message');
+  if (messageEl) {
+    messageEl.textContent = text;
   }
 }
 
-// 오류가 생겼을 때 화면 안의 오류 상자에 친절한 한국어 안내를 보여 주는 함수입니다.
-function showErrorMessage(message) {
-  const errorEl = document.getElementById('error-message');
-  if (!errorEl) return;
-
-  if (message) {
-    errorEl.textContent = message;
-    errorEl.classList.remove('hidden');
-  } else {
-    errorEl.classList.add('hidden');
+// 카메라 위 왼쪽 위의 진행 표시(div#progress)를 "1 / 4" 형태로 바꿔 주는 함수입니다.
+function updateProgress(currentShot, totalShots) {
+  const progressEl = document.getElementById('progress');
+  if (progressEl) {
+    progressEl.textContent = currentShot + ' / ' + totalShots;
   }
 }
 
-// 지정한 초(seconds) 동안 화면 중앙에 5, 4, 3, 2, 1 카운트다운 숫자를 차례대로 보여 주는 함수입니다.
+// 아래쪽 미리보기 줄(div#thumbs)을 깨끗이 비우는 함수입니다.
+function clearThumbs() {
+  const thumbsEl = document.getElementById('thumbs');
+  if (thumbsEl) {
+    thumbsEl.innerHTML = '';
+  }
+}
+
+// 방금 찍은 사진 캔버스(shotCanvas)를 작은 미리보기 줄(div#thumbs)에 추가하는 함수입니다.
+function addThumb(shotCanvas) {
+  const thumbsEl = document.getElementById('thumbs');
+  if (!thumbsEl || !shotCanvas) return;
+
+  const img = document.createElement('img');
+  img.className = 'thumb-item';
+  img.src = shotCanvas.toDataURL('image/png');
+  img.alt = '찍은 사진 미리보기';
+  thumbsEl.appendChild(img);
+}
+
+// 사진이 찍히는 순간 카메라 영역(div#camera-box)에 잠깐 하얀 플래시 효과를 주는 함수입니다.
+function triggerFlash() {
+  const cameraBox = document.getElementById('camera-box');
+  if (!cameraBox) return;
+
+  const flash = document.createElement('div');
+  flash.style.position = 'absolute';
+  flash.style.inset = '0';
+  flash.style.backgroundColor = '#ffffff';
+  flash.style.opacity = '0.85';
+  flash.style.pointerEvents = 'none';
+  flash.style.zIndex = '4';
+  cameraBox.appendChild(flash);
+
+  setTimeout(function () {
+    if (flash.parentNode) {
+      flash.parentNode.removeChild(flash);
+    }
+  }, 140);
+}
+
+// 정해진 밀리초(ms) 동안 잠깐 쉬어 가는(0.7초 대기) 함수입니다.
+function waitPause(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+// 지정한 초(seconds) 동안 화면 중앙(div#countdown)에 5, 4, 3, 2, 1 숫자를 1초 간격으로 보여 주는 함수입니다.
 function runCountdown(seconds) {
   return new Promise(function (resolve) {
-    const overlayEl = document.getElementById('countdown-overlay');
+    const countdownEl = document.getElementById('countdown');
     let remaining = seconds;
 
-    overlayEl.textContent = String(remaining);
-    overlayEl.classList.remove('hidden');
+    countdownEl.textContent = String(remaining);
+    countdownEl.classList.remove('hidden');
 
     const timerId = setInterval(function () {
       remaining -= 1;
       if (remaining > 0) {
-        overlayEl.textContent = String(remaining);
+        countdownEl.textContent = String(remaining);
       } else {
         clearInterval(timerId);
-        overlayEl.classList.add('hidden');
+        countdownEl.classList.add('hidden');
         resolve();
       }
     }, 1000);
   });
 }
 
-// 찍힌 사진 도화지(shotCanvas)를 결과 화면의 도화지(result-canvas)에 옮겨 그리는 함수입니다.
-function renderResultCanvas(shotCanvas) {
-  const resultCanvas = document.getElementById('result-canvas');
-  if (!resultCanvas || !shotCanvas) return;
-
-  resultCanvas.width = shotCanvas.width;
-  resultCanvas.height = shotCanvas.height;
-
-  const ctx = resultCanvas.getContext('2d');
-  ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-  ctx.drawImage(shotCanvas, 0, 0);
+// 화면 ①(select-section), 화면 ②(shoot-section), 화면 ③(result-section) 중 하나만 보여주고 나머지는 숨기는 함수입니다.
+function showSection(sectionId) {
+  const ids = ['select-section', 'shoot-section', 'result-section'];
+  for (let i = 0; i < ids.length; i += 1) {
+    const el = document.getElementById(ids[i]);
+    if (el) {
+      el.classList.toggle('hidden', ids[i] !== sectionId);
+    }
+  }
 }
 
-// [촬영하기] 버튼을 눌렀을 때 5초 카운트다운 후 사진 1장을 찍고 결과 화면을 보여 주는 함수입니다.
-async function handleShootClick() {
-  const videoEl = document.getElementById('camera-video');
-  const shootBtn = document.getElementById('shoot-btn');
-  const cameraSection = document.getElementById('camera-section');
-  const resultSection = document.getElementById('result-section');
+// FILTERS 목록을 돌며 빈 상자(div#filters) 안에 알약 모양 필터 버튼(.filter-btn)들을 자동으로 만드는 함수입니다.
+function createFilterButtons() {
+  const filtersBox = document.getElementById('filters');
+  if (!filtersBox || typeof FILTERS === 'undefined') return;
 
-  // 촬영 중에는 중복으로 눌리지 않게 버튼을 잠시 막습니다.
+  filtersBox.innerHTML = '';
+
+  for (let i = 0; i < FILTERS.length; i += 1) {
+    const item = FILTERS[i];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-btn';
+    btn.setAttribute('data-filter', item.name);
+    btn.textContent = item.label;
+
+    if (item.name === state.filter) {
+      btn.classList.add('active');
+    }
+
+    btn.addEventListener('click', function () {
+      state.filter = item.name;
+      renderResult();
+    });
+
+    filtersBox.appendChild(btn);
+  }
+}
+
+// 현재 선택된 필터(state.filter)와 일치하는 버튼에만 진한 색(.active) 클래스를 붙여 주는 함수입니다.
+function updateActiveFilterButton() {
+  const buttons = document.querySelectorAll('#filters .filter-btn');
+  for (let i = 0; i < buttons.length; i += 1) {
+    const btn = buttons[i];
+    const isActive = btn.getAttribute('data-filter') === state.filter;
+    btn.classList.toggle('active', isActive);
+  }
+}
+
+// 원본 사진 목록(state.shots)에서 매번 새로 필터를 입혀 makeStrip으로 다시 합친 뒤 결과 사진(img#result-photo)에 보여 주는 함수입니다.
+function renderResult() {
+  const resultPhotoEl = document.getElementById('result-photo');
+  if (!resultPhotoEl || !state.shots.length) return;
+
+  updateActiveFilterButton();
+
+  // 화질이 나빠지지 않도록 원본(state.shots)에서 매번 새로 applyFilter를 실행해 복사본을 만듭니다.
+  const filteredShots = [];
+  for (let i = 0; i < state.shots.length; i += 1) {
+    const filteredCopy = applyFilter(state.shots[i], state.filter);
+    filteredShots.push(filteredCopy);
+  }
+
+  // 프레임 흰 바탕과 글씨에는 필터가 입혀지지 않도록 필터 입힌 사진들을 makeStrip으로 합칩니다.
+  const stripCanvas = makeStrip(filteredShots);
+  resultPhotoEl.src = stripCanvas.toDataURL('image/png');
+}
+
+// 컷 버튼(button.cut-btn)을 누르면 state.cuts를 저장하고, 사진 목록을 비우고, 촬영 화면으로 전환한 뒤, 카메라가 아직 안 켜졌으면 켜는 함수입니다.
+async function handleCutSelect(cuts) {
+  const videoEl = document.getElementById('video');
+  const shootBtn = document.getElementById('shoot-btn');
+
+  state.cuts = cuts;
+  state.shots = [];
+  state.filter = 'original';
+  clearThumbs();
+  updateProgress(1, state.cuts);
+  showSection('shoot-section');
+
+  // 카메라는 한 번 켜면 계속 켜 두어 다시 권한을 묻지 않게 합니다.
+  if (!state.cameraOn) {
+    shootBtn.disabled = true;
+    setMessage('카메라를 연결하고 있어요. 잠시만 기다려 주세요...');
+
+    const result = await startCamera(videoEl);
+    if (result === true) {
+      state.cameraOn = true;
+      shootBtn.disabled = false;
+      setMessage(
+        state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
+      );
+    } else {
+      state.cameraOn = false;
+      shootBtn.disabled = true;
+      setMessage(result);
+    }
+  } else {
+    shootBtn.disabled = false;
+    setMessage(
+      state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
+    );
+  }
+}
+
+// [촬영 시작] 버튼을 누르면 컷 수만큼 반복(진행 표시 → 5초 카운트 → 플래시 → captureShot → 미리보기 추가 → 0.7초 쉬기)한 뒤 원본 필터로 renderResult()를 실행하는 함수입니다.
+async function handleShootStart() {
+  const videoEl = document.getElementById('video');
+  const shootBtn = document.getElementById('shoot-btn');
+
   shootBtn.disabled = true;
-  showErrorMessage('');
-  setStatusMessage('포즈를 취해 주세요! 곧 사진이 찍힙니다.');
+  state.shots = [];
+  state.filter = 'original';
+  clearThumbs();
 
   try {
-    // 5초 카운트다운(5 -> 4 -> 3 -> 2 -> 1)을 진행합니다.
-    await runCountdown(5);
+    for (let i = 1; i <= state.cuts; i += 1) {
+      // 1. 진행 표시 ("1 / 4" 등)
+      updateProgress(i, state.cuts);
+      setMessage(i + ' / ' + state.cuts + '번째 촬영 — 포즈를 취해 주세요!');
 
-    // 현재 카메라 화면을 도화지(canvas) 1장으로 찍습니다.
-    const shotCanvas = captureShot(videoEl);
-    renderResultCanvas(shotCanvas);
+      // 2. 5초 카운트다운
+      await runCountdown(COUNTDOWN_SECONDS);
 
-    // 카메라 화면을 숨기고 결과 확인 화면을 보여 줍니다.
-    cameraSection.classList.add('hidden');
-    resultSection.classList.remove('hidden');
-    setStatusMessage('사진이 완성되었어요! 마음에 들지 않으면 [다시 찍기]를 눌러 주세요.');
+      // 3. 플래시 효과
+      triggerFlash();
+
+      // 4. captureShot으로 800×600 좌우 반전 사진 캡처 후 원본(state.shots)에 보관
+      const shotCanvas = captureShot(videoEl);
+      state.shots.push(shotCanvas);
+
+      // 5. 미리보기 줄(div#thumbs)에 추가
+      addThumb(shotCanvas);
+
+      // 6. 0.7초 쉬기
+      setMessage('찰칵!');
+      await waitPause(PAUSE_BETWEEN_SHOTS_MS);
+    }
+
+    // 촬영이 끝나면 원본 필터('original')로 renderResult()를 실행해 결과 화면을 보여 줍니다.
+    state.filter = 'original';
+    renderResult();
+    showSection('result-section');
   } catch (error) {
-    showErrorMessage('사진 촬영 중 문제가 발생했습니다. 다시 시도해 주세요.');
-    setStatusMessage('화면을 보고 포즈를 준비한 뒤 [촬영하기] 버튼을 눌러 주세요!');
+    setMessage('촬영 중 문제가 발생했습니다. 다시 시도해 주세요.');
   } finally {
     shootBtn.disabled = false;
   }
 }
 
-// [다시 찍기] 버튼을 눌렀을 때 결과 화면을 숨기고 다시 카메라 촬영 화면으로 돌아가는 함수입니다.
-function handleRetakeClick() {
-  const cameraSection = document.getElementById('camera-section');
-  const resultSection = document.getElementById('result-section');
-
-  resultSection.classList.add('hidden');
-  cameraSection.classList.remove('hidden');
-  showErrorMessage('');
-  setStatusMessage('화면을 보고 포즈를 준비한 뒤 [촬영하기] 버튼을 눌러 주세요!');
+// [처음으로] 버튼(button#restart-btn)을 누르면 컷 수 고르기 화면(section#select-section)으로 돌아가는 함수입니다.
+function handleRestart() {
+  state.shots = [];
+  state.filter = 'original';
+  updateActiveFilterButton();
+  clearThumbs();
+  showSection('select-section');
 }
 
-// 웹페이지가 처음 열렸을 때 카메라를 켜고 버튼 클릭 동작을 연결하는 시작 함수입니다.
-async function initApp() {
-  const videoEl = document.getElementById('camera-video');
+// 웹페이지가 열렸을 때 필터 버튼들을 자동으로 만들고, 각 버튼의 클릭 동작을 연결하는 시작 함수입니다.
+function initApp() {
+  const cutButtons = document.querySelectorAll('.cut-btn');
   const shootBtn = document.getElementById('shoot-btn');
-  const retakeBtn = document.getElementById('retake-btn');
+  const restartBtn = document.getElementById('restart-btn');
 
-  shootBtn.addEventListener('click', handleShootClick);
-  retakeBtn.addEventListener('click', handleRetakeClick);
+  // FILTERS 목록을 돌며 div#filters 안에 버튼들을 자동으로 생성합니다.
+  createFilterButtons();
 
-  shootBtn.disabled = true;
-  setStatusMessage('카메라를 연결하고 있어요. 잠시만 기다려 주세요...');
-
-  try {
-    await startCamera(videoEl);
-    shootBtn.disabled = false;
-    showErrorMessage('');
-    setStatusMessage('화면을 보고 포즈를 준비한 뒤 [촬영하기] 버튼을 눌러 주세요!');
-  } catch (error) {
-    shootBtn.disabled = true;
-    setStatusMessage('카메라 연결을 확인해 주세요.');
-    showErrorMessage(
-      "카메라를 사용할 수 없습니다. 브라우저 주소창 옆에서 카메라 권한을 '허용'으로 바꾸거나, 안전한 주소(https 또는 localhost)에서 다시 열어 주세요."
-    );
+  for (let i = 0; i < cutButtons.length; i += 1) {
+    const btn = cutButtons[i];
+    btn.addEventListener('click', function () {
+      const cuts = Number(btn.getAttribute('data-cuts')) || 4;
+      handleCutSelect(cuts);
+    });
   }
+
+  if (shootBtn) {
+    shootBtn.addEventListener('click', handleShootStart);
+  }
+
+  if (restartBtn) {
+    restartBtn.addEventListener('click', handleRestart);
+  }
+
+  showSection('select-section');
 }
 
-// 화면 구조(DOM)가 모두 준비되면 포토부스 앱을 시작합니다.
+// 화면 구조(DOM)가 준비되면 앱을 시작합니다.
 window.addEventListener('DOMContentLoaded', initApp);
-

@@ -2,60 +2,87 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>인생네컷 웹 포토부스</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- 휴대폰 세로 화면 중심의 전체 포토부스 상자 -->
   <main id="app-container" class="booth-container">
-    <!-- 상단 제목 영역 -->
     <header id="app-header" class="booth-header">
       <h1 id="app-title" class="booth-title">인생네컷</h1>
-      <p id="status-message" class="status-message">
-        카메라를 연결하고 있어요. 잠시만 기다려 주세요...
-      </p>
     </header>
 
-    <!-- 오류 발생 시 한국어 안내 문구 영역 (평소에는 숨김) -->
-    <div id="error-message" class="error-box hidden" role="alert">
-      카메라를 사용할 수 없습니다. 브라우저 주소창 옆에서 카메라 권한을 '허용'으로 바꾸거나, 안전한 주소(https 또는 localhost)에서 다시 열어 주세요.
-    </div>
+    <!-- 화면 ①: 컷 수 고르기 (section#select-section) -->
+    <section id="select-section" class="screen-section">
+      <p id="select-guide" class="guide-text">원하는 프레임 컷 수를 골라 주세요.</p>
 
-    <!-- 1. 카메라 촬영 화면 영역 -->
-    <section id="camera-section" class="screen-section">
-      <div id="video-wrapper" class="preview-frame">
-        <!-- 실시간 카메라 영상 -->
-        <video id="camera-video" autoplay playsinline muted></video>
-        <!-- 5초 카운트다운 숫자 표시 (평소에는 숨김) -->
-        <div id="countdown-overlay" class="countdown-overlay hidden">5</div>
-      </div>
+      <div id="cut-btn-group" class="cut-choice-grid">
+        <!-- 2컷 선택 버튼 (class="cut-btn", data-cuts="2") -->
+        <button id="cut-2-btn" type="button" class="cut-btn" data-cuts="2">
+          <span id="icon-2cut" class="cut-icon" aria-hidden="true">
+            <span class="cut-box"></span>
+            <span class="cut-box"></span>
+          </span>
+          <span class="cut-label">2컷</span>
+        </button>
 
-      <div class="button-group">
-        <button id="shoot-btn" type="button" class="primary-btn">
-          촬영하기
+        <!-- 4컷 선택 버튼 (class="cut-btn", data-cuts="4") -->
+        <button id="cut-4-btn" type="button" class="cut-btn" data-cuts="4">
+          <span id="icon-4cut" class="cut-icon" aria-hidden="true">
+            <span class="cut-box"></span>
+            <span class="cut-box"></span>
+            <span class="cut-box"></span>
+            <span class="cut-box"></span>
+          </span>
+          <span class="cut-label">4컷</span>
         </button>
       </div>
     </section>
 
-    <!-- 2. 촬영 결과 확인 화면 영역 (처음에는 숨김) -->
-    <section id="result-section" class="screen-section hidden">
-      <div id="result-container" class="preview-frame result-frame">
-        <!-- 촬영된 사진 1장 도화지(canvas)가 표시되는 영역 -->
-        <canvas id="result-canvas"></canvas>
+    <!-- 화면 ②: 촬영 화면 (section#shoot-section, 처음엔 hidden) -->
+    <section id="shoot-section" class="screen-section hidden">
+      <div id="camera-box" class="preview-frame">
+        <!-- 실시간 카메라 영상 -->
+        <video id="video" autoplay playsinline webkit-playsinline muted></video>
+        <!-- 카메라 위 왼쪽 위에 진행 표시 (div#progress) -->
+        <div id="progress" class="progress-badge">1 / 4</div>
+        <!-- 5초 카운트다운 숫자 표시 -->
+        <div id="countdown" class="countdown-overlay hidden">5</div>
       </div>
 
-      <div class="button-group">
-        <button id="retake-btn" type="button" class="secondary-btn">
-          다시 찍기
-        </button>
+      <!-- 아래에 찍은 사진 작은 미리보기 줄 (div#thumbs) -->
+      <div id="thumbs" class="thumbs-row" aria-label="찍은 사진 미리보기"></div>
+
+      <!-- 상태 및 오류 안내 문장 (p#message) -->
+      <p id="message" class="message-text">촬영 시작 버튼을 누르면 5초 카운트가 시작됩니다.</p>
+
+      <!-- 촬영 시작 버튼 (button#shoot-btn) -->
+      <button id="shoot-btn" type="button" class="primary-btn">촬영 시작</button>
+    </section>
+
+    <!-- 화면 ③: 결과 화면 (section#result-section, 처음엔 hidden) -->
+    <section id="result-section" class="screen-section hidden">
+      <h2 id="result-title" class="result-title">완성!</h2>
+
+      <!-- 결과 사진 위에 안내 문장 "필터를 골라 보세요"와 빈 상자 div#filters (버튼은 js가 자동으로 생성) -->
+      <p id="filter-guide" class="guide-text">필터를 골라 보세요</p>
+      <div id="filters" class="filters-row" role="group" aria-label="사진 필터 선택"></div>
+
+      <div id="result-box" class="result-frame">
+        <!-- 완성된 세로 프레임 사진 (img#result-photo, class="strip", 너비 최대 320px, 그림자) -->
+        <img id="result-photo" class="strip" alt="완성된 인생네컷 세로 프레임 사진">
       </div>
+
+      <!-- 처음으로 버튼 (1단계의 retake-btn이 restart-btn으로 바뀜) -->
+      <button id="restart-btn" type="button" class="primary-btn">처음으로</button>
     </section>
   </main>
 
-  <!-- 일반 script 태그를 순서대로 불러오기 (module 사용 금지) -->
+  <!-- 일반 script 태그를 순서대로 불러오기 (js/camera.js → js/frame.js → js/filters.js → js/app.js) -->
   <script src="js/camera.js"></script>
+  <script src="js/frame.js"></script>
+  <script src="js/filters.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
-
