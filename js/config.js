@@ -16,6 +16,6 @@
 //    - 반드시 브라우저 공개용 키(Publishable key / anon key)만 넣어야 안전합니다.
 // ============================================================================
 
-const SUPABASE_URL = '여기에-내-프로젝트주소';
-const SUPABASE_KEY = '여기에-내-키';
+const SUPABASE_URL = 'https://zgdouwpycwgzudbnlyuk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jA2Y31edY1OpflW2YCPajg_BgGNQ_vE';
 const PHOTO_BUCKET = 'photos';
