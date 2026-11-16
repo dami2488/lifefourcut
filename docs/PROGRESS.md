@@ -36,7 +36,8 @@
 ## 2. 다음 할 일
 
 - [x] **확장 C (Supabase Storage 업로드 및 QR코드 공유)** 기획 → 설계 → 데이터 → 화면 → 기능 → 검수 → 배포 안내 완료
-- [ ] 사용자가 `js/config.js`에 실제 Supabase 프로젝트 주소와 Publishable key를 넣고 GitHub Pages에 업로드하여 휴대폰으로 실전 테스트하기
+- [x] Supabase MCP를 통해 `js/config.js`에 실제 프로젝트 주소(`https://zgdouwpycwgzudbnlyuk.supabase.co`)와 `Publishable key` 반영 및 Supabase `photos` 공개 버킷·권한(INSERT/SELECT) 자동 생성 완료
+- [ ] 브라우저 새로고침 후 QR코드 생성 확인 및 GitHub Pages 업로드하여 휴대폰으로 테스트하기
 
 ---
 
