@@ -202,14 +202,20 @@ body {
   display: block;
 }
 
-/* 안내 및 상태 문구 (p#message) */
+/* 안내 및 상태 문구 (p#message, p#qr-message) */
 #message,
+#qr-message,
 .message-text {
   font-size: 0.95rem;
   color: #444444;
   line-height: 1.45;
   min-height: 1.5em;
   word-break: keep-all;
+}
+
+#qr-message:empty {
+  min-height: 0;
+  margin: -4px 0;
 }
 
 /* 화면 ③: 결과 영역 (제목 "완성!", 필터 선택 줄 div#filters, img#result-photo.strip) */
@@ -278,7 +284,65 @@ body {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
-/* 공통 주 버튼 스타일 (button#shoot-btn, button#restart-btn) */
+/* 확장 C: QR코드 공유 카드 (div#qr-box, div#qrcode, a#photo-link) */
+.qr-card {
+  width: 100%;
+  background-color: #faf8f4;
+  border: 1.5px solid #e4dfd5;
+  border-radius: 18px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-guide-text {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111111;
+}
+
+.qrcode-holder {
+  width: 224px;
+  height: 224px;
+  background-color: #ffffff;
+  border: 1px solid #e4dfd5;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.qrcode-holder img,
+.qrcode-holder canvas {
+  width: 200px !important;
+  height: 200px !important;
+  display: block;
+}
+
+.qr-sub-text {
+  font-size: 0.9rem;
+  color: #555555;
+}
+
+.photo-open-link {
+  display: inline-block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111111;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  padding: 6px 12px;
+}
+
+.photo-open-link:hover {
+  color: #444444;
+}
+
+/* 공통 주 버튼 스타일 (button#shoot-btn, button#qr-btn) */
 .primary-btn {
   width: 100%;
   padding: 16px 20px;
@@ -304,6 +368,30 @@ body {
 }
 
 .primary-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 보조 버튼 스타일 (button#restart-btn) */
+.secondary-btn {
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border-radius: 14px;
+  border: 2px solid #d8d3c8;
+  background-color: #ffffff;
+  color: #222222;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.2s ease, border-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.secondary-btn:hover {
+  background-color: #faf8f4;
+  border-color: #111111;
+}
+
+.secondary-btn:active {
   transform: scale(0.98);
 }
 

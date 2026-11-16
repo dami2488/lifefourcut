@@ -1,87 +1,118 @@
-// 도화지(canvas)의 그림을 업로드용 PNG 파일 데이터(Blob)로 변환해 주는 보조 함수입니다.
-function canvasToBlob(canvas) {
+// CDN으로 불러온 전역 변수 supabase와 이름이 겹치지 않도록 연결 객체 이름을 supabaseClient로 사용합니다.
+let supabaseClient = null;
+
+// 처음 사진을 업로드할 때 한 번만 Supabase 연결(supabaseClient)을 만들고, config.js에 자리 표시 글자가 그대로면 친절한 오류를 내는 함수입니다.
+function getClient() {
+  if (
+    typeof SUPABASE_URL !== 'string' ||
+    typeof SUPABASE_KEY !== 'string' ||
+    !SUPABASE_URL.trim() ||
+    !SUPABASE_KEY.trim() ||
+    SUPABASE_URL.indexOf('여기에-') !== -1 ||
+    SUPABASE_KEY.indexOf('여기에-') !== -1
+  ) {
+    throw new Error('js/config.js 에 내 Supabase 주소와 키를 먼저 넣어 주세요');
+  }
+
+  if (!supabaseClient) {
+    if (typeof supabase === 'undefined' || !supabase.createClient) {
+      throw new Error('Supabase 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');
+    }
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+
+  return supabaseClient;
+}
+
+// 완성된 캔버스(canvas)를 화질 0.9의 JPG 데이터(Blob)로 바꾸어 주는 보조 함수입니다.
+function canvasToJpegBlob(canvas) {
   return new Promise(function (resolve, reject) {
-    if (!canvas || typeof canvas.toBlob !== 'function') {
-      reject(new Error('사진 데이터를 변환할 수 없습니다.'));
+    if (!canvas || !canvas.toBlob) {
+      reject(new Error('사진 데이터를 만들 수 없어요.'));
       return;
     }
 
-    canvas.toBlob(function (blob) {
-      if (blob) {
-        resolve(blob);
-      } else {
-        reject(new Error('PNG 이미지 파일 생성에 실패했습니다.'));
-      }
-    }, 'image/png');
+    canvas.toBlob(
+      function (blob) {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('JPG 이미지 변환에 실패했어요.'));
+        }
+      },
+      'image/jpeg',
+      0.9
+    );
   });
 }
 
-// 완성된 인생네컷 도화지(canvas)를 Supabase Storage의 photos 버킷에 올리고 공개 인터넷 주소(url)를 돌려주는 함수입니다.
+// 업로드할 사진 파일 이름을 '날짜시간-무작위6글자.jpg'(예: 20261116153000-a1b2c3.jpg) 형식으로 만들어 주는 보조 함수입니다.
+function makePhotoFileName() {
+  const now = new Date();
+  const yyyy = String(now.getFullYear());
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const dateTimePart = yyyy + mm + dd + hh + min + ss;
+
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let randomPart = '';
+  for (let i = 0; i < 6; i += 1) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    randomPart += chars.charAt(randomIndex);
+  }
+
+  return dateTimePart + '-' + randomPart + '.jpg';
+}
+
+// 완성된 프레임 캔버스(canvas)를 JPG(화질 0.9)로 만들어 Supabase Storage의 photos 버킷에 올리고 공개 인터넷 주소를 돌려주는 함수입니다.
 async function uploadPhoto(canvas) {
-  if (typeof isSupabaseConfigured === 'function' && !isSupabaseConfigured()) {
-    throw new Error(
-      '아직 js/config.js 파일에 Supabase 프로젝트 주소와 Publishable key(공개 키)가 입력되지 않았습니다. 설정 후 다시 시도해 주세요.'
-    );
-  }
+  const client = getClient();
+  const blob = await canvasToJpegBlob(canvas);
+  const fileName = makePhotoFileName();
+  const bucketName = typeof PHOTO_BUCKET === 'string' && PHOTO_BUCKET ? PHOTO_BUCKET : 'photos';
 
-  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-    throw new Error('Supabase 외부 도구(CDN)를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');
-  }
-
-  const client = window.supabase.createClient(
-    SUPABASE_CONFIG.url,
-    SUPABASE_CONFIG.publishableKey
-  );
-
-  const blob = await canvasToBlob(canvas);
-  const bucket = SUPABASE_CONFIG.bucketName || 'photos';
-  const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const fileName = 'lifefourcut-' + Date.now() + '-' + randomSuffix + '.png';
-
-  const uploadResult = await client.storage.from(bucket).upload(fileName, blob, {
-    contentType: 'image/png',
-    upsert: false
-  });
+  const uploadResult = await client.storage
+    .from(bucketName)
+    .upload(fileName, blob, {
+      contentType: 'image/jpeg',
+      upsert: false
+    });
 
   if (uploadResult.error) {
-    throw new Error(
-      '클라우드 업로드에 실패했습니다 (' +
-        uploadResult.error.message +
-        '). Supabase의 photos 버킷과 업로드 정책(SQL)을 확인해 주세요.'
-    );
+    throw uploadResult.error;
   }
 
-  const publicUrlResult = client.storage.from(bucket).getPublicUrl(fileName);
-  const publicUrl =
-    publicUrlResult &&
-    publicUrlResult.data &&
-    publicUrlResult.data.publicUrl;
+  const publicUrlResult = client.storage
+    .from(bucketName)
+    .getPublicUrl(fileName);
 
-  if (!publicUrl) {
-    throw new Error('업로드된 사진의 공개 인터넷 주소를 가져오지 못했습니다.');
+  if (
+    !publicUrlResult ||
+    !publicUrlResult.data ||
+    !publicUrlResult.data.publicUrl
+  ) {
+    throw new Error('공개 사진 주소를 가져오지 못했어요.');
   }
 
-  return publicUrl;
+  return publicUrlResult.data.publicUrl;
 }
 
-// 지정한 화면 요소(element) 안에 사진의 인터넷 주소(url)로 연결되는 네모난 QR코드를 그려 주는 함수입니다.
+// QR코드를 그릴 요소(element) 안을 깨끗이 비우고 new QRCode로 200×200 크기의 QR코드를 그려 주는 함수입니다.
 function drawQrCode(element, url) {
-  if (!element || !url) return;
+  if (!element) return;
 
-  // 이전에 그려진 QR코드가 있다면 먼저 깨끗이 비웁니다.
   element.innerHTML = '';
 
-  if (typeof window.QRCode !== 'function') {
-    throw new Error('QR코드 생성 도구(CDN)를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');
+  if (typeof QRCode === 'undefined') {
+    throw new Error('QR코드 라이브러리를 불러오지 못했어요.');
   }
 
-  new window.QRCode(element, {
+  new QRCode(element, {
     text: url,
-    width: 160,
-    height: 160,
-    colorDark: '#111111',
-    colorLight: '#ffffff',
-    correctLevel: window.QRCode.CorrectLevel.M
+    width: 200,
+    height: 200
   });
 }
-

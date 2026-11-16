@@ -1,9 +1,10 @@
-// 앱의 전체 상태(선택한 컷 수, 찍은 원본 사진 목록, 카메라 켜짐 여부, 현재 필터 이름표)를 state 객체 하나에 모아 관리합니다.
+// 앱의 전체 상태(선택한 컷 수, 찍은 원본 사진 목록, 카메라 켜짐 여부, 현재 필터 이름표, 완성된 세로 프레임 캔버스)를 state 객체 하나에 모아 관리합니다.
 const state = {
   cuts: 4,
   shots: [],
   cameraOn: false,
-  filter: 'original'
+  filter: 'original',
+  strip: null
 };
 
 // 5초 카운트다운 시간과 컷 사이 쉬는 시간(0.7초 = 700밀리초) 설정입니다.
@@ -16,6 +17,28 @@ function setMessage(text) {
   if (messageEl) {
     messageEl.textContent = text;
   }
+}
+
+// 결과 화면의 QR 안내 문장(p#qr-message)을 바꿔 주는 함수입니다.
+function setQrMessage(text) {
+  const qrMessageEl = document.getElementById('qr-message');
+  if (qrMessageEl) {
+    qrMessageEl.textContent = text;
+  }
+}
+
+// 기존 QR 상자(div#qr-box)를 숨기고, 안내 문장을 비우며, [QR코드로 휴대폰에 받기] 버튼(button#qr-btn)의 잠금을 다시 풀어 주는 함수입니다.
+function resetQrState() {
+  const qrBoxEl = document.getElementById('qr-box');
+  const qrBtnEl = document.getElementById('qr-btn');
+
+  if (qrBoxEl) {
+    qrBoxEl.classList.add('hidden');
+  }
+  if (qrBtnEl) {
+    qrBtnEl.disabled = false;
+  }
+  setQrMessage('');
 }
 
 // 카메라 위 왼쪽 위의 진행 표시(div#progress)를 "1 / 4" 형태로 바꿔 주는 함수입니다.
@@ -145,7 +168,7 @@ function updateActiveFilterButton() {
   }
 }
 
-// 원본 사진 목록(state.shots)에서 매번 새로 필터를 입혀 makeStrip으로 다시 합친 뒤 결과 사진(img#result-photo)에 보여 주는 함수입니다.
+// 원본 사진 목록(state.shots)에서 매번 새로 필터를 입혀 makeStrip으로 합친 뒤, 완성 프레임 캔버스를 state.strip에 저장하고 기존 QR 상자를 숨기며 버튼을 다시 풀어 주는 함수입니다.
 function renderResult() {
   const resultPhotoEl = document.getElementById('result-photo');
   if (!resultPhotoEl || !state.shots.length) return;
@@ -161,7 +184,49 @@ function renderResult() {
 
   // 프레임 흰 바탕과 글씨에는 필터가 입혀지지 않도록 필터 입힌 사진들을 makeStrip으로 합칩니다.
   const stripCanvas = makeStrip(filteredShots);
+  state.strip = stripCanvas;
   resultPhotoEl.src = stripCanvas.toDataURL('image/png');
+
+  // 필터가 바뀌거나 새 결과가 그려지면 기존 QR 상자를 숨기고 QR 버튼을 다시 풀어 줍니다.
+  resetQrState();
+}
+
+// [QR코드로 휴대폰에 받기] 버튼(button#qr-btn)을 누르면 완성 프레임(state.strip)을 업로드하고 QR코드와 새 창 링크를 보여 주는 함수입니다.
+async function handleQrClick() {
+  const qrBtnEl = document.getElementById('qr-btn');
+  const qrBoxEl = document.getElementById('qr-box');
+  const qrcodeEl = document.getElementById('qrcode');
+  const photoLinkEl = document.getElementById('photo-link');
+
+  if (!state.strip) return;
+
+  if (qrBtnEl) {
+    qrBtnEl.disabled = true;
+  }
+  if (qrBoxEl) {
+    qrBoxEl.classList.add('hidden');
+  }
+  setQrMessage('사진을 올리는 중이에요...');
+
+  try {
+    const publicUrl = await uploadPhoto(state.strip);
+    drawQrCode(qrcodeEl, publicUrl);
+
+    if (photoLinkEl) {
+      photoLinkEl.href = publicUrl;
+    }
+    if (qrBoxEl) {
+      qrBoxEl.classList.remove('hidden');
+    }
+    setQrMessage('');
+  } catch (error) {
+    const errorText =
+      error && error.message ? error.message : String(error);
+    setQrMessage('올리지 못했어요: ' + errorText);
+    if (qrBtnEl) {
+      qrBtnEl.disabled = false;
+    }
+  }
 }
 
 // 컷 버튼(button.cut-btn)을 누르면 state.cuts를 저장하고, 사진 목록을 비우고, 촬영 화면으로 전환한 뒤, 카메라가 아직 안 켜졌으면 켜는 함수입니다.
@@ -172,7 +237,9 @@ async function handleCutSelect(cuts) {
   state.cuts = cuts;
   state.shots = [];
   state.filter = 'original';
+  state.strip = null;
   clearThumbs();
+  resetQrState();
   updateProgress(1, state.cuts);
   showSection('shoot-section');
 
@@ -209,6 +276,7 @@ async function handleShootStart() {
   shootBtn.disabled = true;
   state.shots = [];
   state.filter = 'original';
+  state.strip = null;
   clearThumbs();
 
   try {
@@ -250,8 +318,10 @@ async function handleShootStart() {
 function handleRestart() {
   state.shots = [];
   state.filter = 'original';
+  state.strip = null;
   updateActiveFilterButton();
   clearThumbs();
+  resetQrState();
   showSection('select-section');
 }
 
@@ -259,6 +329,7 @@ function handleRestart() {
 function initApp() {
   const cutButtons = document.querySelectorAll('.cut-btn');
   const shootBtn = document.getElementById('shoot-btn');
+  const qrBtn = document.getElementById('qr-btn');
   const restartBtn = document.getElementById('restart-btn');
 
   // FILTERS 목록을 돌며 div#filters 안에 버튼들을 자동으로 생성합니다.
@@ -274,6 +345,10 @@ function initApp() {
 
   if (shootBtn) {
     shootBtn.addEventListener('click', handleShootStart);
+  }
+
+  if (qrBtn) {
+    qrBtn.addEventListener('click', handleQrClick);
   }
 
   if (restartBtn) {
