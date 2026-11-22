@@ -13,9 +13,15 @@
       <h1 id="app-title" class="booth-title">인생네컷</h1>
     </header>
 
-    <!-- 화면 ①: 컷 수 고르기 (section#select-section) -->
+    <!-- 화면 ①: 프레임 테마 & 컷 수 고르기 (section#select-section) -->
     <section id="select-section" class="screen-section">
-      <p id="select-guide" class="guide-text">원하는 프레임 컷 수를 골라 주세요.</p>
+      <!-- 촬영 전 프레임 테마 미리보기 선택 영역 -->
+      <div class="frame-picker-block">
+        <p id="pre-frame-guide" class="guide-text">1. 함께 찍을 캐릭터 프레임을 골라 주세요</p>
+        <div id="pre-frames" class="frames-preview-grid" role="group" aria-label="촬영 전 프레임 테마 선택"></div>
+      </div>
+
+      <p id="select-guide" class="guide-text">2. 촬영할 컷 수를 누르면 카메라가 켜집니다</p>
 
       <div id="cut-btn-group" class="cut-choice-grid">
         <!-- 2컷 선택 버튼 (class="cut-btn", data-cuts="2") -->
@@ -24,7 +30,7 @@
             <span class="cut-box"></span>
             <span class="cut-box"></span>
           </span>
-          <span class="cut-label">2컷</span>
+          <span class="cut-label">2컷 촬영</span>
         </button>
 
         <!-- 4컷 선택 버튼 (class="cut-btn", data-cuts="4") -->
@@ -35,7 +41,7 @@
             <span class="cut-box"></span>
             <span class="cut-box"></span>
           </span>
-          <span class="cut-label">4컷</span>
+          <span class="cut-label">4컷 촬영 (캐릭터)</span>
         </button>
       </div>
     </section>
@@ -43,8 +49,10 @@
     <!-- 화면 ②: 촬영 화면 (section#shoot-section, 처음엔 hidden) -->
     <section id="shoot-section" class="screen-section hidden">
       <div id="camera-box" class="preview-frame">
-        <!-- 실시간 카메라 영상 -->
+        <!-- 실시간 카메라 영상 (전면 카메라 거울 반전) -->
         <video id="video" autoplay playsinline webkit-playsinline muted></video>
+        <!-- 현재 촬영할 컷(1~4컷)의 캐릭터만 실시간으로 보여주는 투명 오버레이 (반전 없음) -->
+        <img id="char-overlay" class="char-overlay hidden" alt="현재 컷 캐릭터 실시간 오버레이">
         <!-- 카메라 위 왼쪽 위에 진행 표시 (div#progress) -->
         <div id="progress" class="progress-badge">1 / 4</div>
         <!-- 5초 카운트다운 숫자 표시 -->
@@ -55,7 +63,7 @@
       <div id="thumbs" class="thumbs-row" aria-label="찍은 사진 미리보기"></div>
 
       <!-- 상태 및 오류 안내 문장 (p#message) -->
-      <p id="message" class="message-text">촬영 시작 버튼을 누르면 5초 카운트가 시작됩니다.</p>
+      <p id="message" class="message-text">화면에 나타난 캐릭터 옆에 얼굴을 맞추고 촬영을 시작해 보세요!</p>
 
       <!-- 촬영 시작 버튼 (button#shoot-btn) -->
       <button id="shoot-btn" type="button" class="primary-btn">촬영 시작</button>
@@ -64,6 +72,12 @@
     <!-- 화면 ③: 결과 화면 (section#result-section, 처음엔 hidden) -->
     <section id="result-section" class="screen-section hidden">
       <h2 id="result-title" class="result-title">완성!</h2>
+
+      <!-- 촬영 후에도 사진을 유지한 채 프레임을 자유롭게 변경하는 미리보기 선택 줄 -->
+      <div class="frame-picker-block">
+        <p id="result-frame-guide" class="guide-text">프레임 바꾸기 (찍은 사진은 그대로 유지돼요)</p>
+        <div id="result-frames" class="frames-scroll-row" role="group" aria-label="촬영 후 프레임 테마 변경"></div>
+      </div>
 
       <!-- 결과 사진 위에 안내 문장 "필터를 골라 보세요"와 빈 상자 div#filters (버튼은 js가 자동으로 생성) -->
       <p id="filter-guide" class="guide-text">필터를 골라 보세요</p>
@@ -74,8 +88,11 @@
         <img id="result-photo" class="strip" alt="완성된 인생네컷 세로 프레임 사진">
       </div>
 
-      <!-- 확장 C: QR코드로 휴대폰에 받기 버튼, 안내 문장, QR 상자(처음엔 hidden) -->
-      <button id="qr-btn" type="button" class="primary-btn qr-action-btn">QR코드로 휴대폰에 받기</button>
+      <!-- 선택한 프레임이 적용된 최종 사진 기기 저장 및 QR코드 공유 버튼 -->
+      <div class="result-actions-group">
+        <button id="download-btn" type="button" class="secondary-btn">사진 파일로 저장하기</button>
+        <button id="qr-btn" type="button" class="primary-btn qr-action-btn">QR코드로 휴대폰에 받기</button>
+      </div>
       <p id="qr-message" class="message-text"></p>
 
       <div id="qr-box" class="qr-card hidden">

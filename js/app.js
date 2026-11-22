@@ -1,9 +1,11 @@
-// 앱의 전체 상태(선택한 컷 수, 찍은 원본 사진 목록, 카메라 켜짐 여부, 현재 필터 이름표, 완성된 세로 프레임 캔버스)를 state 객체 하나에 모아 관리합니다.
+// 앱의 전체 상태(선택한 컷 수, 찍은 원본 사진 목록, 카메라 켜짐 여부, 현재 필터 이름표, 선택한 프레임 이름표, 현재 컷 번호, 완성된 세로 프레임 캔버스)를 state 객체 하나에 모아 관리합니다.
 const state = {
   cuts: 4,
   shots: [],
   cameraOn: false,
   filter: 'original',
+  frame: 'puppy-booth',
+  currentCutIndex: 0,
   strip: null
 };
 
@@ -49,6 +51,36 @@ function updateProgress(currentShot, totalShots) {
   }
 }
 
+// 촬영 화면(div#camera-box)의 가로:세로 비율을 선택한 프레임의 사진 칸 비율과 일치시키고, 현재 촬영할 컷(cutIndex: 0~3)의 캐릭터 오버레이(img#char-overlay)만 실시간으로 띄워 주는 함수입니다.
+function updateLiveCharacterOverlay(cutIndex) {
+  const cameraBoxEl = document.getElementById('camera-box');
+  const charOverlayEl = document.getElementById('char-overlay');
+  state.currentCutIndex = cutIndex || 0;
+
+  if (cameraBoxEl && typeof getFrameSlotAspectRatio === 'function') {
+    cameraBoxEl.style.aspectRatio = getFrameSlotAspectRatio(
+      state.frame,
+      state.cuts
+    );
+  }
+
+  if (!charOverlayEl || typeof getCutCharacterOverlay !== 'function') return;
+
+  const overlaySrc = getCutCharacterOverlay(
+    state.frame,
+    state.currentCutIndex,
+    state.cuts
+  );
+
+  if (overlaySrc) {
+    charOverlayEl.src = overlaySrc;
+    charOverlayEl.classList.remove('hidden');
+  } else {
+    charOverlayEl.removeAttribute('src');
+    charOverlayEl.classList.add('hidden');
+  }
+}
+
 // 아래쪽 미리보기 줄(div#thumbs)을 깨끗이 비우는 함수입니다.
 function clearThumbs() {
   const thumbsEl = document.getElementById('thumbs');
@@ -57,10 +89,50 @@ function clearThumbs() {
   }
 }
 
-// 방금 찍은 사진 캔버스(shotCanvas)를 작은 미리보기 줄(div#thumbs)에 추가하는 함수입니다.
-function addThumb(shotCanvas) {
+// 방금 찍은 사진 캔버스(shotCanvas)에 현재 컷의 캐릭터를 함께 미리보기로 그려 작은 미리보기 줄(div#thumbs)에 추가하는 함수입니다.
+function addThumb(shotCanvas, cutIndex) {
   const thumbsEl = document.getElementById('thumbs');
   if (!thumbsEl || !shotCanvas) return;
+
+  const cfg =
+    typeof findFrameConfig === 'function' ? findFrameConfig(state.frame) : null;
+
+  // 4컷 캐릭터 프레임이면 해당 컷의 사진 칸 비율과 캐릭터가 합쳐진 미리보기 썸네일을 보여 줍니다.
+  if (cfg && cfg.isImageFrame && state.cuts === 4) {
+    const slot = cfg.slots[cutIndex || 0] || cfg.slots[0];
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = Math.round(slot.w / 2);
+    thumbCanvas.height = Math.round(slot.h / 2);
+    const tctx = thumbCanvas.getContext('2d');
+
+    if (typeof drawPhotoCover === 'function') {
+      drawPhotoCover(tctx, shotCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+    } else {
+      tctx.drawImage(shotCanvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+    }
+
+    const overlaySrc =
+      typeof getCutCharacterOverlay === 'function'
+        ? getCutCharacterOverlay(state.frame, cutIndex || 0, state.cuts)
+        : null;
+
+    const img = document.createElement('img');
+    img.className = 'thumb-item';
+    img.alt = (cutIndex + 1) + '컷 미리보기';
+    thumbsEl.appendChild(img);
+
+    if (overlaySrc) {
+      const ovImg = new Image();
+      ovImg.onload = function () {
+        tctx.drawImage(ovImg, 0, 0, thumbCanvas.width, thumbCanvas.height);
+        img.src = thumbCanvas.toDataURL('image/png');
+      };
+      ovImg.src = overlaySrc;
+    } else {
+      img.src = thumbCanvas.toDataURL('image/png');
+    }
+    return;
+  }
 
   const img = document.createElement('img');
   img.className = 'thumb-item';
@@ -80,7 +152,7 @@ function triggerFlash() {
   flash.style.backgroundColor = '#ffffff';
   flash.style.opacity = '0.85';
   flash.style.pointerEvents = 'none';
-  flash.style.zIndex = '4';
+  flash.style.zIndex = '5';
   cameraBox.appendChild(flash);
 
   setTimeout(function () {
@@ -130,6 +202,77 @@ function showSection(sectionId) {
   }
 }
 
+// 촬영 전(div#pre-frames)과 촬영 후(div#result-frames) 상자 안에 각 프레임의 미리보기 카드 버튼을 자동으로 생성하는 함수입니다.
+function createFrameButtons() {
+  if (typeof FRAMES === 'undefined') return;
+
+  const containerIds = ['pre-frames', 'result-frames'];
+  const previewCache = {};
+
+  for (let i = 0; i < FRAMES.length; i += 1) {
+    const frameItem = FRAMES[i];
+    previewCache[frameItem.name] = createFramePreviewDataUrl(frameItem.name);
+  }
+
+  for (let c = 0; c < containerIds.length; c += 1) {
+    const box = document.getElementById(containerIds[c]);
+    if (!box) continue;
+
+    box.innerHTML = '';
+
+    for (let i = 0; i < FRAMES.length; i += 1) {
+      const item = FRAMES[i];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'frame-card-btn';
+      btn.setAttribute('data-frame', item.name);
+
+      if (item.name === state.frame) {
+        btn.classList.add('active');
+      }
+
+      const badge = document.createElement('span');
+      badge.className = 'frame-category-badge';
+      badge.textContent = item.category;
+
+      const thumbImg = document.createElement('img');
+      thumbImg.className = 'frame-thumb-img';
+      thumbImg.src = previewCache[item.name];
+      thumbImg.alt = item.label + ' 미리보기';
+
+      const label = document.createElement('span');
+      label.className = 'frame-card-label';
+      label.textContent = item.label;
+
+      btn.appendChild(badge);
+      btn.appendChild(thumbImg);
+      btn.appendChild(label);
+
+      btn.addEventListener('click', function () {
+        state.frame = item.name;
+        updateActiveFrameButton();
+        updateLiveCharacterOverlay(state.currentCutIndex);
+        // 촬영이 끝난 상태에서 프레임을 바꾸면 원본 사진(state.shots)을 유지한 채 즉시 새 프레임으로 합성합니다.
+        if (state.shots && state.shots.length > 0) {
+          renderResult();
+        }
+      });
+
+      box.appendChild(btn);
+    }
+  }
+}
+
+// 촬영 전·후 프레임 선택 카드 중 현재 선택된 프레임(state.frame)과 일치하는 버튼에만 강조 표시(.active)를 붙여 주는 함수입니다.
+function updateActiveFrameButton() {
+  const buttons = document.querySelectorAll('.frame-card-btn');
+  for (let i = 0; i < buttons.length; i += 1) {
+    const btn = buttons[i];
+    const isActive = btn.getAttribute('data-frame') === state.frame;
+    btn.classList.toggle('active', isActive);
+  }
+}
+
 // FILTERS 목록을 돌며 빈 상자(div#filters) 안에 알약 모양 필터 버튼(.filter-btn)들을 자동으로 만드는 함수입니다.
 function createFilterButtons() {
   const filtersBox = document.getElementById('filters');
@@ -168,12 +311,24 @@ function updateActiveFilterButton() {
   }
 }
 
-// 원본 사진 목록(state.shots)에서 매번 새로 필터를 입혀 makeStrip으로 합친 뒤, 완성 프레임 캔버스를 state.strip에 저장하고 기존 QR 상자를 숨기며 버튼을 다시 풀어 주는 함수입니다.
+// 원본 사진 목록(state.shots)에는 캐릭터를 영구 합성하지 않고 그대로 둔 채, 매번 필터를 입히고 선택한 프레임(state.frame)과 합성해 결과 화면(img#result-photo)과 state.strip을 갱신하는 함수입니다.
 function renderResult() {
   const resultPhotoEl = document.getElementById('result-photo');
   if (!resultPhotoEl || !state.shots.length) return;
 
+  updateActiveFrameButton();
   updateActiveFilterButton();
+
+  // 만약 선택한 프레임 이미지가 아직 로딩 중이면 로딩 완료 즉시 다시 그리도록 연결합니다.
+  if (
+    typeof loadedFrameImages !== 'undefined' &&
+    loadedFrameImages[state.frame] &&
+    !loadedFrameImages[state.frame].complete
+  ) {
+    loadedFrameImages[state.frame].onload = function () {
+      renderResult();
+    };
+  }
 
   // 화질이 나빠지지 않도록 원본(state.shots)에서 매번 새로 applyFilter를 실행해 복사본을 만듭니다.
   const filteredShots = [];
@@ -182,13 +337,29 @@ function renderResult() {
     filteredShots.push(filteredCopy);
   }
 
-  // 프레임 흰 바탕과 글씨에는 필터가 입혀지지 않도록 필터 입힌 사진들을 makeStrip으로 합칩니다.
-  const stripCanvas = makeStrip(filteredShots);
+  // 선택한 프레임과 각 컷의 캐릭터를 사진 위에 합성합니다.
+  const stripCanvas = makeStrip(filteredShots, state.frame);
   state.strip = stripCanvas;
   resultPhotoEl.src = stripCanvas.toDataURL('image/png');
 
-  // 필터가 바뀌거나 새 결과가 그려지면 기존 QR 상자를 숨기고 QR 버튼을 다시 풀어 줍니다.
+  // 프레임이나 필터가 바뀌면 기존 QR 상자를 숨기고 QR 버튼을 다시 풀어 줍니다.
   resetQrState();
+}
+
+// [사진 파일로 저장하기] 버튼(button#download-btn)을 누르면 현재 선택한 프레임과 필터가 적용된 완성 사진(state.strip)을 기기에 다운로드하는 함수입니다.
+function handleDownloadClick() {
+  if (!state.strip) return;
+
+  const link = document.createElement('a');
+  const today =
+    typeof formatTodayDate === 'function'
+      ? formatTodayDate().replace(/\./g, '')
+      : 'photo';
+  link.download = 'lifefourcut-' + state.frame + '-' + today + '.png';
+  link.href = state.strip.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // [QR코드로 휴대폰에 받기] 버튼(button#qr-btn)을 누르면 완성 프레임(state.strip)을 업로드하고 QR코드와 새 창 링크를 보여 주는 함수입니다.
@@ -229,7 +400,7 @@ async function handleQrClick() {
   }
 }
 
-// 컷 버튼(button.cut-btn)을 누르면 state.cuts를 저장하고, 사진 목록을 비우고, 촬영 화면으로 전환한 뒤, 카메라가 아직 안 켜졌으면 켜는 함수입니다.
+// 컷 버튼(button.cut-btn)을 누르면 state.cuts를 저장하고, 1컷 캐릭터 오버레이를 미리 카메라 화면에 띄운 뒤, 카메라가 아직 안 켜졌으면 켜는 함수입니다.
 async function handleCutSelect(cuts) {
   const videoEl = document.getElementById('video');
   const shootBtn = document.getElementById('shoot-btn');
@@ -237,10 +408,14 @@ async function handleCutSelect(cuts) {
   state.cuts = cuts;
   state.shots = [];
   state.filter = 'original';
+  state.currentCutIndex = 0;
   state.strip = null;
   clearThumbs();
   resetQrState();
   updateProgress(1, state.cuts);
+
+  // 촬영 시작 전부터 1컷 캐릭터(왼쪽 강아지/고양이/햄스터)를 카메라 위에 미리 표시해 위치를 맞출 수 있게 합니다.
+  updateLiveCharacterOverlay(0);
   showSection('shoot-section');
 
   // 카메라는 한 번 켜면 계속 켜 두어 다시 권한을 묻지 않게 합니다.
@@ -253,7 +428,9 @@ async function handleCutSelect(cuts) {
       state.cameraOn = true;
       shootBtn.disabled = false;
       setMessage(
-        state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
+        state.cuts === 4
+          ? '화면에 보이는 1컷 캐릭터 옆에 얼굴을 맞추고 [촬영 시작]을 눌러 주세요!'
+          : state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
       );
     } else {
       state.cameraOn = false;
@@ -263,12 +440,14 @@ async function handleCutSelect(cuts) {
   } else {
     shootBtn.disabled = false;
     setMessage(
-      state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
+      state.cuts === 4
+        ? '화면에 보이는 1컷 캐릭터 옆에 얼굴을 맞추고 [촬영 시작]을 눌러 주세요!'
+        : state.cuts + '컷 촬영 준비 완료! [촬영 시작] 버튼을 눌러 주세요.'
     );
   }
 }
 
-// [촬영 시작] 버튼을 누르면 컷 수만큼 반복(진행 표시 → 5초 카운트 → 플래시 → captureShot → 미리보기 추가 → 0.7초 쉬기)한 뒤 원본 필터로 renderResult()를 실행하는 함수입니다.
+// [촬영 시작] 버튼을 누르면 컷 수만큼 반복하면서 매 컷마다 해당 컷의 캐릭터 오버레이(1컷 왼쪽 → 2컷 오른쪽 → 3컷 왼쪽 → 4컷 오른쪽 아래)로 자동 전환하고 원본 사진을 찍어 보관하는 함수입니다.
 async function handleShootStart() {
   const videoEl = document.getElementById('video');
   const shootBtn = document.getElementById('shoot-btn');
@@ -279,31 +458,46 @@ async function handleShootStart() {
   state.strip = null;
   clearThumbs();
 
+  const cutPoseGuides = [
+    '왼쪽 캐릭터 옆(오른쪽)에 위치를 맞춰 보세요!',
+    '오른쪽 캐릭터 옆(왼쪽)에 위치를 맞춰 보세요!',
+    '왼쪽 캐릭터 옆(오른쪽)에서 함께 포즈를 취해 보세요!',
+    '오른쪽 아래 잠자는 캐릭터와 함께 마지막 포즈!'
+  ];
+
   try {
     for (let i = 1; i <= state.cuts; i += 1) {
-      // 1. 진행 표시 ("1 / 4" 등)
-      updateProgress(i, state.cuts);
-      setMessage(i + ' / ' + state.cuts + '번째 촬영 — 포즈를 취해 주세요!');
+      const cutIdx = i - 1;
 
-      // 2. 5초 카운트다운
+      // 1. 현재 찍을 컷(1~4컷)에 맞는 실시간 캐릭터 오버레이로 자동 변경 및 진행 표시
+      updateLiveCharacterOverlay(cutIdx);
+      updateProgress(i, state.cuts);
+
+      if (state.cuts === 4 && cutPoseGuides[cutIdx]) {
+        setMessage(i + ' / 4컷 — ' + cutPoseGuides[cutIdx]);
+      } else {
+        setMessage(i + ' / ' + state.cuts + '번째 촬영 — 포즈를 취해 주세요!');
+      }
+
+      // 2. 5초 카운트다운 (촬영자는 실시간 캐릭터 오버레이를 보며 위치를 맞춤)
       await runCountdown(COUNTDOWN_SECONDS);
 
       // 3. 플래시 효과
       triggerFlash();
 
-      // 4. captureShot으로 800×600 좌우 반전 사진 캡처 후 원본(state.shots)에 보관
+      // 4. captureShot으로 원본 사진(캐릭터 미합성본)을 캡처해 state.shots에 보관
       const shotCanvas = captureShot(videoEl);
       state.shots.push(shotCanvas);
 
       // 5. 미리보기 줄(div#thumbs)에 추가
-      addThumb(shotCanvas);
+      addThumb(shotCanvas, cutIdx);
 
-      // 6. 0.7초 쉬기
+      // 6. 다음 컷으로 넘어가기 전 0.7초 쉬기 (다음 컷 캐릭터가 곧바로 이어서 나타남)
       setMessage('찰칵!');
       await waitPause(PAUSE_BETWEEN_SHOTS_MS);
     }
 
-    // 촬영이 끝나면 원본 필터('original')로 renderResult()를 실행해 결과 화면을 보여 줍니다.
+    // 촬영이 끝나면 원본 사진 4장(state.shots)과 선택한 프레임을 합쳐 결과 화면을 보여 줍니다.
     state.filter = 'original';
     renderResult();
     showSection('result-section');
@@ -318,19 +512,25 @@ async function handleShootStart() {
 function handleRestart() {
   state.shots = [];
   state.filter = 'original';
+  state.currentCutIndex = 0;
   state.strip = null;
+  updateActiveFrameButton();
   updateActiveFilterButton();
   clearThumbs();
   resetQrState();
   showSection('select-section');
 }
 
-// 웹페이지가 열렸을 때 필터 버튼들을 자동으로 만들고, 각 버튼의 클릭 동작을 연결하는 시작 함수입니다.
+// 웹페이지가 열렸을 때 프레임 미리보기 버튼들과 필터 버튼들을 자동으로 만들고, 각 버튼의 클릭 동작을 연결하는 시작 함수입니다.
 function initApp() {
   const cutButtons = document.querySelectorAll('.cut-btn');
   const shootBtn = document.getElementById('shoot-btn');
+  const downloadBtn = document.getElementById('download-btn');
   const qrBtn = document.getElementById('qr-btn');
   const restartBtn = document.getElementById('restart-btn');
+
+  // 촬영 전(#pre-frames)과 촬영 후(#result-frames)에 프레임 미리보기 카드들을 자동으로 생성합니다.
+  createFrameButtons();
 
   // FILTERS 목록을 돌며 div#filters 안에 버튼들을 자동으로 생성합니다.
   createFilterButtons();
@@ -345,6 +545,10 @@ function initApp() {
 
   if (shootBtn) {
     shootBtn.addEventListener('click', handleShootStart);
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', handleDownloadClick);
   }
 
   if (qrBtn) {
