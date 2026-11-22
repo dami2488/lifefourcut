@@ -196,21 +196,21 @@ body {
   color: #111111;
 }
 
-/* 화면 ②: 촬영 영역 (카메라 + 실시간 캐릭터 오버레이 img#char-overlay + 진행 배지 + 카운트다운) */
+/* 화면 ②: 촬영 영역 (4:3 비율 카메라 + 실시간 캐릭터 오버레이 img#char-overlay + 진행 배지 + 카운트다운) */
 .preview-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 479 / 198;
+  aspect-ratio: 4 / 3;
   background-color: #1a1a1a;
   border-radius: 16px;
   overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
 }
 
 #video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;

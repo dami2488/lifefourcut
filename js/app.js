@@ -521,7 +521,7 @@ function handleRestart() {
   showSection('select-section');
 }
 
-// 웹페이지가 열렸을 때 프레임 미리보기 버튼들과 필터 버튼들을 자동으로 만들고, 각 버튼의 클릭 동작을 연결하는 시작 함수입니다.
+// 웹페이지가 열렸을 때 각 버튼의 클릭 동작을 먼저 안전하게 연결하고, 프레임·필터 버튼들을 자동으로 만드는 시작 함수입니다.
 function initApp() {
   const cutButtons = document.querySelectorAll('.cut-btn');
   const shootBtn = document.getElementById('shoot-btn');
@@ -529,12 +529,7 @@ function initApp() {
   const qrBtn = document.getElementById('qr-btn');
   const restartBtn = document.getElementById('restart-btn');
 
-  // 촬영 전(#pre-frames)과 촬영 후(#result-frames)에 프레임 미리보기 카드들을 자동으로 생성합니다.
-  createFrameButtons();
-
-  // FILTERS 목록을 돌며 div#filters 안에 버튼들을 자동으로 생성합니다.
-  createFilterButtons();
-
+  // 1. 모바일 브라우저 캐시 등의 문제가 있더라도 2컷/4컷 촬영 버튼이 언제나 작동하도록 먼저 이벤트를 연결합니다.
   for (let i = 0; i < cutButtons.length; i += 1) {
     const btn = cutButtons[i];
     btn.addEventListener('click', function () {
@@ -557,6 +552,20 @@ function initApp() {
 
   if (restartBtn) {
     restartBtn.addEventListener('click', handleRestart);
+  }
+
+  // 2. 촬영 전(#pre-frames)과 촬영 후(#result-frames)에 프레임 미리보기 카드들을 자동으로 생성합니다.
+  try {
+    createFrameButtons();
+  } catch (err) {
+    console.error('프레임 버튼 생성 오류:', err);
+  }
+
+  // 3. FILTERS 목록을 돌며 div#filters 안에 버튼들을 자동으로 생성합니다.
+  try {
+    createFilterButtons();
+  } catch (err) {
+    console.error('필터 버튼 생성 오류:', err);
   }
 
   showSection('select-section');
